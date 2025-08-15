@@ -1,0 +1,123 @@
+version: '3.8'
+
+services:
+  sales-service:
+    build: .
+    container_name: erp-sales-service
+    restart: unless-stopped
+    ports:
+      - "8001:8000"  # HTTP API
+      - "50051:50051"  # gRPC
+    environment:
+      - DJANGO_SETTINGS_MODULE=config.settings.development
+      - DB_HOST=postgres
+      - REDIS_HOST=redis
+      - ELASTICSEARCH_HOST=elasticsearch:9200
+      - KAFKA_BROKERS=kafka:9092
+    volumes:
+      - ./logs:/app/logs
+      - ./media:/app/media
+    depends_on:
+      - postgres
+      - redis
+      - elasticsearch
+      - kafka
+    networks:
+      - erp-network
+
+  sales-service-grpc:
+    build: .
+    container_name: erp-sales-service-grpc
+    restart: unless-stopped
+    ports:
+      - "50052:50051"  # gRPC only
+    environment:
+      - DJANGO_SETTINGS_MODULE=config.settings.development
+      - DB_HOST=postgres
+      - REDIS_HOST=redis
+      - ELASTICSEARCH_HOST=elasticsearch:9200
+      - KAFKA_BROKERS=kafka:9092
+    volumes:
+      - ./logs:/app/logs
+    depends_on:
+      - postgres
+      - redis
+      - elasticsearch
+      - kafka
+    command: ["python", "grpc_server.py"]
+    networks:
+      - erp-network
+
+  # External services (these should be provided by the main infrastructure)
+  postgres:
+    image: postgres:15
+    container_name: erp-sales-postgres
+    environment:
+      POSTGRES_DB: erp_sales
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5433:5432"
+    networks:
+      - erp-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: erp-sales-redis
+    command: redis-server --requirepass redispassword
+    ports:
+      - "6380:6379"
+    networks:
+      - erp-network
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0
+    container_name: erp-sales-elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ports:
+      - "9201:9200"
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    networks:
+      - erp-network
+
+  kafka:
+    image: confluentinc/cp-kafka:7.4.0
+    container_name: erp-sales-kafka
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+    ports:
+      - "9093:9092"
+    depends_on:
+      - zookeeper
+    networks:
+      - erp-network
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.4.0
+    container_name: erp-sales-zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    networks:
+      - erp-network
+
+volumes:
+  postgres_data:
+  elasticsearch_data:
+
+networks:
+  erp-network:
+    driver: bridge 
