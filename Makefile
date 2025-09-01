@@ -34,6 +34,10 @@ help:
 	@echo "  db-reset         - Reset database (WARNING: deletes all data)"
 	@echo "  db-backup        - Backup database"
 	@echo "  db-restore       - Restore database from backup"
+	@echo ""
+	@echo "Invoice Service Integration:"
+	@echo "  test-invoice-service - Test invoice service integration"
+	@echo "  run-with-invoice     - Run with invoice service integration"
 
 # Development commands
 install:
@@ -139,6 +143,15 @@ collectstatic:
 check:
 	@echo "Running Django checks..."
 	$(MANAGE) check
+
+# Invoice Service Integration
+test-invoice-service:
+	@echo "Testing Invoice Service integration..."
+	$(MANAGE) test_invoice_service
+
+run-with-invoice:
+	@echo "Running with Invoice Service integration..."
+	$(DOCKER_COMPOSE) -f docker-compose.yml -f docker-compose.invoice-integration.yml up -d
 
 # Production commands
 deploy:

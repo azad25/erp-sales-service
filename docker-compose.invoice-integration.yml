@@ -1,0 +1,55 @@
+version: '3.8'
+
+services:
+  sales-service:
+    environment:
+      # Invoice Service Integration
+      - INVOICE_SERVICE_HOST=invoice-service
+      - INVOICE_SERVICE_PORT=50055
+      - INVOICE_SERVICE_TIMEOUT=10s
+      - INVOICE_SERVICE_ENABLED=true
+      - INVOICE_SERVICE_FALLBACK_ENABLED=true
+    depends_on:
+      - invoice-service
+    networks:
+      - erp-network
+
+  # Include the invoice service
+  invoice-service:
+    image: erp-invoice-service:latest
+    container_name: erp-sales-invoice-service
+    ports:
+      - "8085:8085"  # HTTP API
+      - "50055:50055"  # gRPC
+    environment:
+      - PORT=8085
+      - GRPC_PORT=50055
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=erp_invoices
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=redispassword
+      - NATS_URL=nats://nats:4222
+    depends_on:
+      - postgres
+      - redis
+      - nats
+    networks:
+      - erp-network
+    volumes:
+      - invoice_data:/app/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8085/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  invoice_data:
+
+networks:
+  erp-network:
+    external: true
